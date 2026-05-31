@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIFA World Cup 2026 · Stadium Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05080f;
+    --surface: #0c1220;
+    --surface2: #111927;
+    --border: #1e2d42;
+    --accent: #e8b84b;
+    --accent2: #d94f2a;
+    --accent3: #3bb8c4;
+    --text: #c8d8e8;
+    --dim: #607080;
+    --heat: #e85c3a;
+    --altitude: #9b6fd4;
+    --crowd: #f5c842;
+    --travel: #3bbf8a;
+    --historic: #e8884b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* NOISE TEXTURE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* HEADER */
+  header {
+    position: relative;
+    padding: 2.5rem 2rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #0a1420 0%, var(--bg) 100%);
+  }
+
+  .header-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    flex-wrap: wrap;
+  }
+
+  .title-block h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.4rem, 5vw, 4.2rem);
+    letter-spacing: 0.04em;
+    color: #fff;
+    line-height: 0.95;
+  }
+
+  .title-block h1 span {
+    color: var(--accent);
+  }
+
+  .title-block p {
+    margin-top: 0.6rem;
+    color: var(--dim);
+    font-size: 0.8rem;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem 1.2rem;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-family: 'IBM Plex Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dim);
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* FILTERS */
+  .filters {
+    max-width: 1400px;
+    margin: 1.2rem auto 0;
+    padding: 0 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .filter-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: 2px;
+  }
+
+  .filter-btn:hover, .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem 2rem 4rem;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* MAP */
+  .map-wrap {
+    position: relative;
+  }
+
+  #map-svg-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    aspect-ratio: 1.55;
+    position: relative;
+  }
+
+  #map-svg-container svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .stadium-pin {
+    cursor: pointer;
+    transition: transform 0.15s;
+    transform-origin: center;
+  }
+
+  .stadium-pin:hover {
+    transform: scale(1.25);
+  }
+
+  .stadium-pin.selected {
+    transform: scale(1.3);
+  }
+
+  .pin-pulse {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0; transform: scale(2.5); }
+  }
+
+  /* DETAIL PANEL */
+  .detail-panel {
+    position: sticky;
+    top: 1rem;
+    height: fit-content;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .detail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .detail-header {
+    padding: 1.2rem 1.2rem 1rem;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .stadium-number {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 5rem;
+    color: var(--border);
+    position: absolute;
+    right: 1rem;
+    top: 0.2rem;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  .detail-header h2 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.8rem;
+    color: #fff;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    position: relative;
+  }
+
+  .detail-header .city {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+  }
+
+  .detail-header .country-flag {
+    font-size: 1.2rem;
+    margin-right: 0.3rem;
+  }
+
+  /* STAT BARS */
+  .stats-grid {
+    padding: 1rem 1.2rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.8rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-item {}
+  .stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin-bottom: 0.2rem;
+  }
+
+  .stat-value {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.heat { color: var(--heat); }
+  .stat-value.altitude { color: var(--altitude); }
+
+  /* CHALLENGE BADGES */
+  .challenges {
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .challenges-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin-bottom: 0.5rem;
+  }
+
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+    font-weight: 600;
+  }
+
+  .badge-heat { background: rgba(232,92,58,0.15); border: 1px solid rgba(232,92,58,0.4); color: var(--heat); }
+  .badge-altitude { background: rgba(155,111,212,0.15); border: 1px solid rgba(155,111,212,0.4); color: var(--altitude); }
+  .badge-crowd { background: rgba(245,200,66,0.12); border: 1px solid rgba(245,200,66,0.35); color: var(--crowd); }
+  .badge-travel { background: rgba(59,191,138,0.12); border: 1px solid rgba(59,191,138,0.35); color: var(--travel); }
+  .badge-historic { background: rgba(232,136,75,0.12); border: 1px solid rgba(232,136,75,0.35); color: var(--historic); }
+  .badge-final { background: rgba(232,184,75,0.2); border: 1px solid rgba(232,184,75,0.6); color: var(--accent); }
+
+  /* MATCHES */
+  .matches-section {
+    padding: 1rem 1.2rem;
+  }
+
+  .matches-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    margin-bottom: 0.6rem;
+  }
+
+  .match-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .match-item:last-child {
+    border-bottom: none;
+  }
+
+  .match-date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--dim);
+    letter-spacing: 0.06em;
+  }
+
+  .match-teams {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .match-group {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--accent3);
+    letter-spacing: 0.05em;
+  }
+
+  /* PLACEHOLDER */
+  .placeholder {
+    padding: 3rem 1.2rem;
+    text-align: center;
+  }
+
+  .placeholder-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.8rem;
+    opacity: 0.4;
+  }
+
+  .placeholder h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+  }
+
+  .placeholder p {
+    color: var(--dim);
+    font-size: 0.78rem;
+    margin-top: 0.4rem;
+  }
+
+  /* GRID BELOW MAP */
+  .stadium-grid {
+    margin-top: 1.2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.5rem;
+  }
+
+  .grid-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.7rem 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .grid-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--border);
+    transition: background 0.15s;
+  }
+
+  .grid-card:hover, .grid-card.active {
+    border-color: var(--accent);
+    background: var(--surface2);
+  }
+
+  .grid-card:hover::before, .grid-card.active::before {
+    background: var(--accent);
+  }
+
+  .grid-card-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .grid-card-city {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 0.15rem;
+  }
+
+  .grid-card-badges {
+    display: flex;
+    gap: 0.2rem;
+    margin-top: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .mini-badge {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    .main {
+      grid-template-columns: 1fr;
+    }
+    .detail-panel {
+      position: static;
+    }
+  }
+
+  /* SCROLL REVEAL */
+  .fade-in {
+    animation: fadeIn 0.3s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .map-tooltip {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    padding: 0.4rem 0.7rem;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: #fff;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 10;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="title-block">
+      <h1>WORLD CUP 2026<br><span>STADIUM INTELLIGENCE</span></h1>
+      <p>FIFA World Cup · 16 Venues · 3 Countries · June 11 – July 19</p>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--altitude)"></div>Altitude</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--heat)"></div>Heat</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--crowd)"></div>Crowd Noise</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--travel)"></div>Travel Hub</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--historic)"></div>Historic</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>Final / Feature</div>
+    </div>
+  </div>
+</header>
+
+<div style="max-width:1400px;margin:0 auto;padding:0 2rem">
+  <div class="filters" style="padding:0">
+    <button class="filter-btn active" data-filter="all">All Venues</button>
+    <button class="filter-btn" data-filter="altitude">🏔 Altitude</button>
+    <button class="filter-btn" data-filter="heat">🔥 Extreme Heat</button>
+    <button class="filter-btn" data-filter="crowd">📣 Loudest</button>
+    <button class="filter-btn" data-filter="historic">🏛 Historic</button>
+    <button class="filter-btn" data-filter="usa">🇺🇸 USA</button>
+    <button class="filter-btn" data-filter="mexico">🇲🇽 Mexico</button>
+    <button class="filter-btn" data-filter="canada">🇨🇦 Canada</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="map-wrap">
+    <div id="map-svg-container">
+      <div class="map-tooltip" id="tooltip"></div>
+      <!-- SVG Map of North America with stadium pins -->
+      <svg id="main-map" viewBox="0 0 900 580" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background gradient -->
+        <defs>
+          <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0c1a2e"/>
+            <stop offset="100%" stop-color="#060d18"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <rect width="900" height="580" fill="url(#bgGrad)"/>
+
+        <!-- Subtle grid lines -->
+        <g stroke="#1a2535" stroke-width="0.5" opacity="0.6">
+          <line x1="0" y1="100" x2="900" y2="100"/>
+          <line x1="0" y1="200" x2="900" y2="200"/>
+          <line x1="0" y1="300" x2="900" y2="300"/>
+          <line x1="0" y1="400" x2="900" y2="400"/>
+          <line x1="0" y1="500" x2="900" y2="500"/>
+          <line x1="150" y1="0" x2="150" y2="580"/>
+          <line x1="300" y1="0" x2="300" y2="580"/>
+          <line x1="450" y1="0" x2="450" y2="580"/>
+          <line x1="600" y1="0" x2="600" y2="580"/>
+          <line x1="750" y1="0" x2="750" y2="580"/>
+        </g>
+
+        <!-- Country outlines - stylized -->
+        <!-- Canada rough outline -->
+        <path d="M80,30 L820,30 L820,200 L680,220 L620,240 L560,230 L500,250 L440,240 L380,250 L300,240 L220,250 L150,230 L80,200 Z" 
+              fill="#0a1525" stroke="#1a2d42" stroke-width="1" opacity="0.7"/>
+
+        <!-- USA rough outline -->
+        <path d="M100,240 L790,230 L800,400 L750,420 L720,410 L700,430 L600,430 L560,450 L500,440 L450,430 L380,440 L300,435 L250,450 L200,440 L150,420 L110,410 Z" 
+              fill="#0a1a2d" stroke="#1a2d42" stroke-width="1" opacity="0.7"/>
+
+        <!-- Mexico rough outline -->
+        <path d="M140,430 L400,435 L420,450 L440,480 L400,520 L350,540 L280,530 L240,510 L200,490 L160,460 Z" 
+              fill="#091520" stroke="#1a2d42" stroke-width="1" opacity="0.7"/>
+
+        <!-- Country labels -->
+        <text x="400" y="140" font-family="IBM Plex Mono" font-size="11" fill="#1e3050" letter-spacing="4" text-anchor="middle">CANADA</text>
+        <text x="450" y="320" font-family="IBM Plex Mono" font-size="11" fill="#1e3050" letter-spacing="4" text-anchor="middle">UNITED STATES</text>
+        <text x="260" y="490" font-family="IBM Plex Mono" font-size="10" fill="#1e3050" letter-spacing="3" text-anchor="middle">MEXICO</text>
+
+        <!-- Stadium pins will be rendered by JS -->
+        <g id="stadium-pins"></g>
+      </svg>
+    </div>
+
+    <!-- Stadium Grid -->
+    <div class="stadium-grid" id="stadium-grid"></div>
+  </div>
+
+  <!-- Detail Panel -->
+  <div class="detail-panel">
+    <div class="detail-card" id="detail-card">
+      <div class="placeholder">
+        <div class="placeholder-icon">🏟</div>
+        <h3>Select a Stadium</h3>
+        <p>Click any pin on the map or<br>a card below to explore venue details</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const OWM_KEY = "bf5e94046ab52d2a46ac7994ea6144a2";
+const weatherCache = {};
+
+async function fetchWeather(lat, lng, stadiumId) {
+  if (weatherCache[stadiumId]) return weatherCache[stadiumId];
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${OWM_KEY}&units=imperial`
+    );
+    if (!res.ok) throw new Error("API error");
+    const data = await res.json();
+    const w = {
+      temp: Math.round(data.main.temp),
+      feels: Math.round(data.main.feels_like),
+      humidity: data.main.humidity,
+      desc: data.weather[0].description,
+      icon: data.weather[0].icon,
+      wind: Math.round(data.wind.speed),
+      loaded: true
+    };
+    weatherCache[stadiumId] = w;
+    return w;
+  } catch(e) {
+    return { loaded: false };
+  }
+}
+
+function weatherHTML(w) {
+  if (!w || !w.loaded) {
+    return `<div style="color:var(--dim);font-size:0.72rem;font-family:'IBM Plex Mono',monospace">Loading weather...</div>`;
+  }
+  const iconUrl = `https://openweathermap.org/img/wn/${w.icon}.png`;
+  const heatWarn = w.temp >= 90 ? `<span style="color:var(--heat);font-size:0.65rem;font-family:'IBM Plex Mono',monospace;margin-left:0.5rem">⚠ EXTREME HEAT</span>` : "";
+  return `
+    <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+      <img src="${iconUrl}" style="width:32px;height:32px;filter:brightness(1.2)" />
+      <div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#fff;line-height:1">${w.temp}°F${heatWarn}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--dim);text-transform:capitalize">${w.desc}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--dim)">Feels ${w.feels}°F</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--dim)">Humidity ${w.humidity}%</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--dim)">Wind ${w.wind} mph</div>
+      </div>
+    </div>
+  `;
+}
+
+const STADIUMS = [
+  {
+    id: 0,
+    name: "Estadio Azteca",
+    city: "Mexico City",
+    country: "Mexico",
+    flag: "🇲🇽",
+    capacity: "87,500",
+    elevation: "7,350 ft / 2,240 m",
+    elevationFt: 7350,
+    lat: 19.3029,
+    lng: -99.1505,
+    // SVG map coords (x,y) for our 900x580 viewBox
+    mx: 178, my: 468,
+    challenges: ["altitude","heat","crowd","historic"],
+    notes: "First stadium ever to host World Cup matches at three different tournaments (1970, 1986, 2026). At 7,350 ft, this is the highest-altitude venue in the tournament. Players face reduced oxygen, faster fatigue, and extended recovery times. Site of the 'Hand of God' and the 'Goal of the Century' in 1986.",
+    matches: [
+      { date: "Jun 11", teams: "Mexico vs. South Africa", group: "Group A · OPENER" },
+      { date: "Jun 24", teams: "Czechia vs. Mexico", group: "Group A" },
+      { date: "Jun 30", teams: "Winner Group A vs 3rd Place", group: "Round of 32" }
+    ]
+  },
+  {
+    id: 1,
+    name: "AT&T Stadium",
+    city: "Arlington, TX",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "80,000+",
+    elevation: "600 ft",
+    elevationFt: 600,
+    lat: 32.7480,
+    lng: -97.0930,
+    mx: 355, my: 370,
+    challenges: ["heat"],
+    notes: "The most matches of any venue in the tournament. One of the largest domed stadiums in the world. Retractable roof provides climate control. Dallas summer heat outside the stadium still affects player logistics and warm-ups. High-energy American football atmosphere translated to World Cup.",
+    matches: [
+      { date: "Multiple dates", teams: "Most matches of any venue", group: "Group Stage + Knockouts" },
+      { date: "Jun 30", teams: "Round of 32 match", group: "Round of 32" }
+    ]
+  },
+  {
+    id: 2,
+    name: "MetLife Stadium",
+    city: "East Rutherford, NJ",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "82,500",
+    elevation: "20 ft",
+    elevationFt: 20,
+    lat: 40.8136,
+    lng: -74.0741,
+    mx: 728, my: 215,
+    challenges: ["historic","final"],
+    notes: "HOST OF THE WORLD CUP FINAL on July 19. One of the largest stadiums in North America. Located in the New York metro area — one of the world's most international cities, guaranteeing an electric multi-national crowd throughout the tournament.",
+    matches: [
+      { date: "Jun 13", teams: "Brazil vs. Morocco", group: "Group C" },
+      { date: "Jun 16", teams: "France vs. Senegal", group: "Group E" },
+      { date: "Jun 22", teams: "Norway vs. Senegal", group: "Group E" },
+      { date: "Jun 25", teams: "Ecuador vs. Germany", group: "Group F" },
+      { date: "Jun 27", teams: "Panama vs. England", group: "Group H" },
+      { date: "Jun 30", teams: "Round of 32", group: "R32" },
+      { date: "Jul 5", teams: "Round of 16", group: "R16" },
+      { date: "Jul 19", teams: "🏆 WORLD CUP FINAL", group: "FINAL" }
+    ]
+  },
+  {
+    id: 3,
+    name: "Arrowhead Stadium",
+    city: "Kansas City, MO",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "76,000+",
+    elevation: "900 ft",
+    elevationFt: 900,
+    lat: 39.0489,
+    lng: -94.4839,
+    mx: 460, my: 270,
+    challenges: ["crowd"],
+    notes: "One of the loudest venues in North America — regularly exceeds 140 decibels for NFL games. Raucous open-air design amplifies noise. Crowds in the heartland bring passionate, sustained energy. Players will feel genuine crowd pressure here.",
+    matches: [
+      { date: "Multiple", teams: "Group Stage matches", group: "Group Stage" },
+      { date: "TBD", teams: "Knockout matches", group: "Knockouts" }
+    ]
+  },
+  {
+    id: 4,
+    name: "NRG Stadium",
+    city: "Houston, TX",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "72,000",
+    elevation: "80 ft",
+    elevationFt: 80,
+    lat: 29.6847,
+    lng: -95.4107,
+    mx: 385, my: 415,
+    challenges: ["heat"],
+    notes: "Houston is among the most extreme heat environments for June-July in North America. Retractable roof and AC provide some relief inside, but humidity and heat outside remain a logistics factor. Recovery protocols between matches become critical for teams playing here.",
+    matches: [
+      { date: "Jun 29", teams: "Round of 32 match", group: "R32" },
+      { date: "Multiple", teams: "Group Stage matches", group: "Group Stage" }
+    ]
+  },
+  {
+    id: 5,
+    name: "Mercedes-Benz Stadium",
+    city: "Atlanta, GA",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "71,000",
+    elevation: "1,050 ft",
+    elevationFt: 1050,
+    lat: 33.7554,
+    lng: -84.4008,
+    mx: 600, my: 340,
+    challenges: ["heat"],
+    notes: "Atlanta's June-July heat and humidity make this one of the most physically demanding venues for players. The stadium's distinctive halo-shaped roof is one of the most architecturally striking in the tournament. Strong Southern hospitality and passionate soccer community.",
+    matches: [
+      { date: "Jun 18", teams: "Czechia vs. South Africa", group: "Group A" },
+      { date: "Jun 24", teams: "Morocco vs. Haiti", group: "Group C" },
+      { date: "Jul 1", teams: "Round of 32", group: "R32" }
+    ]
+  },
+  {
+    id: 6,
+    name: "SoFi Stadium",
+    city: "Los Angeles, CA",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "70,000+",
+    elevation: "100 ft",
+    elevationFt: 100,
+    lat: 33.9535,
+    lng: -118.3392,
+    mx: 120, my: 340,
+    challenges: [],
+    notes: "One of the newest and most modern stadiums in the world, opened in 2020. LA's diverse, international population means home crowds for almost every nation playing here. Mild climate is player-friendly. The USA opens their tournament here against Paraguay on June 12.",
+    matches: [
+      { date: "Jun 12", teams: "USA vs. Paraguay", group: "Group D · USA OPENER" },
+      { date: "Jun 18", teams: "Switzerland vs. Bosnia and Herzegovina", group: "Group B" },
+      { date: "Jun 28", teams: "Round of 32", group: "R32" }
+    ]
+  },
+  {
+    id: 7,
+    name: "Lincoln Financial Field",
+    city: "Philadelphia, PA",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "69,800",
+    elevation: "40 ft",
+    elevationFt: 40,
+    lat: 39.9008,
+    lng: -75.1675,
+    mx: 705, my: 235,
+    challenges: [],
+    notes: "Home of the Philadelphia Eagles. Philly fans are notorious for their intensity — one of the most passionate sports cities in North America. The city's large immigrant communities will bring international soccer fervor to every match.",
+    matches: [
+      { date: "Jun 19", teams: "Brazil vs. Haiti", group: "Group C" },
+      { date: "Jun 27", teams: "Croatia vs. Ghana", group: "Group J" },
+      { date: "Multiple", teams: "Additional matches", group: "Group Stage" }
+    ]
+  },
+  {
+    id: 8,
+    name: "Lumen Field",
+    city: "Seattle, WA",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "69,000",
+    elevation: "175 ft",
+    elevationFt: 175,
+    lat: 47.5952,
+    lng: -122.3316,
+    mx: 95, my: 155,
+    challenges: ["crowd","travel"],
+    notes: "Home to one of the loudest atmospheres in North American sports — the Seahawks' '12th Man' is legendary. Open-air design funnels crowd noise downward. Seattle has a passionate soccer culture (Sounders FC). Teams traveling from the East Coast or Mexico face significant time zone and distance challenges.",
+    matches: [
+      { date: "Multiple", teams: "Group Stage matches", group: "Group Stage" },
+      { date: "TBD", teams: "Knockout matches", group: "Knockouts" }
+    ]
+  },
+  {
+    id: 9,
+    name: "Levi's Stadium",
+    city: "Santa Clara, CA",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "71,000",
+    elevation: "40 ft",
+    elevationFt: 40,
+    lat: 37.4033,
+    lng: -121.9694,
+    mx: 105, my: 295,
+    challenges: [],
+    notes: "Silicon Valley's stadium, set in the heart of the tech industry. Bay Area has a massive international population. Moderate Pacific climate makes this one of the more comfortable venues for players physiologically. Good infrastructure for international teams.",
+    matches: [
+      { date: "Jun 13", teams: "Qatar vs. Switzerland", group: "Group B" },
+      { date: "Jun 18", teams: "Qatar vs. Canada", group: "Group B" },
+      { date: "Multiple", teams: "Additional matches", group: "Group Stage" }
+    ]
+  },
+  {
+    id: 10,
+    name: "Hard Rock Stadium",
+    city: "Miami, FL",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "65,000+",
+    elevation: "10 ft",
+    elevationFt: 10,
+    lat: 25.9580,
+    lng: -80.2389,
+    mx: 640, my: 450,
+    challenges: ["heat","travel"],
+    notes: "Miami's combination of extreme heat AND high humidity creates the most physiologically demanding conditions in the tournament. Feels significantly hotter than dry-heat venues. Miami's massive Latino community will make this a de facto home ground for several South American and CONMEBOL teams.",
+    matches: [
+      { date: "Jun 24", teams: "Scotland vs. Brazil", group: "Group C" },
+      { date: "Multiple", teams: "Group Stage matches", group: "Group Stage" },
+      { date: "TBD", teams: "Knockout match", group: "Knockouts" }
+    ]
+  },
+  {
+    id: 11,
+    name: "Gillette Stadium",
+    city: "Foxborough, MA",
+    country: "USA",
+    flag: "🇺🇸",
+    capacity: "65,000+",
+    elevation: "250 ft",
+    elevationFt: 250,
+    lat: 42.0909,
+    lng: -71.2643,
+    mx: 745, my: 190,
+    challenges: ["travel"],
+    notes: "Boston area — one of the most historically significant American cities. Travel from the West Coast or Mexico to the Northeast is among the longest hauls in the tournament. New England soccer tradition is strong. Open-air stadium in a market with passionate sports culture.",
+    matches: [
+      { date: "Jun 13", teams: "Haiti vs. Scotland", group: "Group C" },
+      { date: "Jun 19", teams: "Scotland vs. Morocco", group: "Group C" },
+      { date: "Jun 29", teams: "Round of 32", group: "R32" }
+    ]
+  },
+  {
+    id: 12,
+    name: "BC Place",
+    city: "Vancouver, BC",
+    country: "Canada",
+    flag: "🇨🇦",
+    capacity: "54,400",
+    elevation: "Sea level",
+    elevationFt: 10,
+    lat: 49.2767,
+    lng: -123.1117,
+    mx: 112, my: 115,
+    challenges: ["travel"],
+    notes: "The furthest north venue in the tournament. Teams traveling from Miami or the Southeast face a 2,700+ mile journey. Retractable roof provides weather protection. Vancouver's multicultural population brings passionate diverse support.",
+    matches: [
+      { date: "Jun 13", teams: "Australia vs. Türkiye", group: "Group D" },
+      { date: "Jun 18", teams: "Canada vs. Qatar", group: "Group B" },
+      { date: "Jun 24", teams: "Canada vs. Switzerland", group: "Group B" },
+      { date: "Multiple", teams: "Additional matches", group: "Group Stage" }
+    ]
+  },
+  {
+    id: 13,
+    name: "Estadio BBVA",
+    city: "Monterrey",
+    country: "Mexico",
+    flag: "🇲🇽",
+    capacity: "53,500",
+    elevation: "1,700 ft",
+    elevationFt: 1700,
+    lat: 25.6693,
+    lng: -100.2459,
+    mx: 270, my: 415,
+    challenges: ["heat","crowd"],
+    notes: "Home of CF Monterrey — one of the most passionate club soccer crowds in Mexico. The Monterrey metro area's intense soccer culture amplifies the atmosphere. Moderate altitude combined with June heat creates demanding conditions. Iconic mountain backdrop makes this a visually stunning venue.",
+    matches: [
+      { date: "Jun 24", teams: "South Africa vs. South Korea", group: "Group A" },
+      { date: "Jun 29", teams: "Round of 32", group: "R32" }
+    ]
+  },
+  {
+    id: 14,
+    name: "Estadio Akron",
+    city: "Guadalajara",
+    country: "Mexico",
+    flag: "🇲🇽",
+    capacity: "49,850",
+    elevation: "5,100 ft / 1,555 m",
+    elevationFt: 5100,
+    lat: 20.6861,
+    lng: -103.4666,
+    mx: 210, my: 455,
+    challenges: ["altitude","heat","crowd"],
+    notes: "At 5,100 feet, this is the second-highest venue in the tournament after Mexico City. Players will notice altitude effects — fatigue sets in earlier, recovery takes longer. Guadalajara is Mexico's second city with fierce soccer passion. The heat-altitude combination is particularly taxing for visiting teams.",
+    matches: [
+      { date: "Jun 11", teams: "South Korea vs. Czechia", group: "Group A" },
+      { date: "Jun 18", teams: "Mexico vs. South Korea", group: "Group A" }
+    ]
+  },
+  {
+    id: 15,
+    name: "BMO Field",
+    city: "Toronto, ON",
+    country: "Canada",
+    flag: "🇨🇦",
+    capacity: "45,700",
+    elevation: "Sea level",
+    elevationFt: 10,
+    lat: 43.6333,
+    lng: -79.4167,
+    mx: 640, my: 170,
+    challenges: ["travel"],
+    notes: "Canada's home opener venue and the smallest venue in the tournament. Canada opens their World Cup here June 12 against Bosnia and Herzegovina in what will be one of the most emotional nights in Canadian soccer history. Toronto's incredibly diverse population will turn this into a global festival.",
+    matches: [
+      { date: "Jun 12", teams: "Canada vs. Bosnia and Herzegovina", group: "Group B · CAN OPENER" },
+      { date: "Multiple", teams: "Additional matches", group: "Group Stage" }
+    ]
+  }
+];
+
+// Map projection helpers — our SVG is 900x580
+// We defined approximate coordinates per stadium in the data above
+
+const challengeColors = {
+  altitude: "#9b6fd4",
+  heat: "#e85c3a",
+  crowd: "#f5c842",
+  travel: "#3bbf8a",
+  historic: "#e8884b",
+  final: "#e8b84b"
+};
+
+let activeFilter = "all";
+let selectedId = null;
+
+function getVisibleStadiums() {
+  return STADIUMS.filter(s => {
+    if (activeFilter === "all") return true;
+    if (activeFilter === "usa") return s.country === "USA";
+    if (activeFilter === "mexico") return s.country === "Mexico";
+    if (activeFilter === "canada") return s.country === "Canada";
+    return s.challenges.includes(activeFilter);
+  });
+}
+
+function getDominantChallenge(s) {
+  if (s.challenges.includes("final") || s.name === "MetLife Stadium") return "#e8b84b";
+  if (s.challenges.includes("altitude")) return "#9b6fd4";
+  if (s.challenges.includes("heat")) return "#e85c3a";
+  if (s.challenges.includes("crowd")) return "#f5c842";
+  if (s.challenges.includes("travel")) return "#3bbf8a";
+  if (s.challenges.includes("historic")) return "#e8884b";
+  return "#3bb8c4";
+}
+
+function renderPins() {
+  const container = document.getElementById("stadium-pins");
+  container.innerHTML = "";
+  const visible = getVisibleStadiums();
+  const visibleIds = new Set(visible.map(s => s.id));
+
+  STADIUMS.forEach(s => {
+    const isVisible = visibleIds.has(s.id);
+    const color = getDominantChallenge(s);
+    const isSelected = s.id === selectedId;
+    const opacity = isVisible ? 1 : 0.15;
+
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", `stadium-pin${isSelected ? " selected" : ""}`);
+    g.setAttribute("data-id", s.id);
+    g.setAttribute("opacity", opacity);
+    g.setAttribute("transform", `translate(${s.mx},${s.my})`);
+
+    // Pulse ring
+    const pulse = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    pulse.setAttribute("r", "12");
+    pulse.setAttribute("fill", "none");
+    pulse.setAttribute("stroke", color);
+    pulse.setAttribute("stroke-width", "1.5");
+    pulse.setAttribute("class", isVisible ? "pin-pulse" : "");
+    pulse.style.animationDelay = `${s.id * 0.15}s`;
+
+    // Outer ring
+    const outer = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    outer.setAttribute("r", "8");
+    outer.setAttribute("fill", "rgba(5,8,15,0.8)");
+    outer.setAttribute("stroke", color);
+    outer.setAttribute("stroke-width", isSelected ? "2.5" : "1.5");
+
+    // Inner dot
+    const inner = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    inner.setAttribute("r", "3.5");
+    inner.setAttribute("fill", color);
+
+    // Label
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", "12");
+    text.setAttribute("y", "4");
+    text.setAttribute("font-family", "IBM Plex Mono");
+    text.setAttribute("font-size", "7.5");
+    text.setAttribute("fill", "#c8d8e8");
+    text.setAttribute("opacity", "0.9");
+    text.textContent = s.city.split(",")[0];
+
+    g.appendChild(pulse);
+    g.appendChild(outer);
+    g.appendChild(inner);
+    g.appendChild(text);
+
+    g.addEventListener("click", () => selectStadium(s.id));
+    g.addEventListener("mouseenter", (e) => showTooltip(e, s));
+    g.addEventListener("mouseleave", hideTooltip);
+
+    container.appendChild(g);
+  });
+}
+
+function renderGrid() {
+  const grid = document.getElementById("stadium-grid");
+  grid.innerHTML = "";
+  const visible = getVisibleStadiums();
+  const visibleIds = new Set(visible.map(s => s.id));
+
+  STADIUMS.forEach(s => {
+    const card = document.createElement("div");
+    card.className = `grid-card${s.id === selectedId ? " active" : ""}`;
+    if (!visibleIds.has(s.id)) {
+      card.style.opacity = "0.3";
+    }
+
+    const badges = s.challenges.map(c =>
+      `<div class="mini-badge" style="background:${challengeColors[c] || '#3bb8c4'}"></div>`
+    ).join("");
+
+    card.innerHTML = `
+      <div class="grid-card-name">${s.name}</div>
+      <div class="grid-card-city">${s.flag} ${s.city}</div>
+      <div class="grid-card-badges">${badges}</div>
+    `;
+    card.addEventListener("click", () => selectStadium(s.id));
+    grid.appendChild(card);
+  });
+}
+
+async function selectStadium(id) {
+  selectedId = id;
+  const s = STADIUMS[id];
+  renderPins();
+  renderGrid();
+  renderDetail(s, null);
+  const w = await fetchWeather(s.lat, s.lng, s.id);
+  renderDetail(s, w);
+}
+
+function renderDetail(s, w) {
+  const card = document.getElementById("detail-card");
+  const badges = s.challenges.map(c => {
+    const labels = {
+      altitude: "🏔 High Altitude",
+      heat: "🔥 Extreme Heat",
+      crowd: "📣 Loud Crowd",
+      travel: "✈️ Travel Demand",
+      historic: "🏛 Historic Venue",
+      final: "🏆 World Cup Final"
+    };
+    return `<span class="badge badge-${c}">${labels[c] || c}</span>`;
+  }).join("");
+
+  const matches = s.matches.map(m => `
+    <div class="match-item">
+      <div class="match-date">${m.date}</div>
+      <div class="match-teams">${m.teams}</div>
+      <div class="match-group">${m.group}</div>
+    </div>
+  `).join("");
+
+  const elevColor = s.elevationFt > 5000 ? "altitude" : s.elevationFt > 1000 ? "" : "";
+
+  card.className = "detail-card fade-in";
+  card.innerHTML = `
+    <div class="detail-header">
+      <div class="stadium-number">${String(s.id + 1).padStart(2,"0")}</div>
+      <div class="detail-header h2" style="font-family:'Bebas Neue',sans-serif;font-size:1.8rem;color:#fff;letter-spacing:0.03em;line-height:1">${s.name}</div>
+      <div class="city"><span class="country-flag">${s.flag}</span>${s.city}, ${s.country}</div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-label">Capacity</div>
+        <div class="stat-value accent">${s.capacity}</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">Elevation</div>
+        <div class="stat-value ${s.elevationFt > 3000 ? "altitude" : ""}">${s.elevation}</div>
+      </div>
+    </div>
+    <div style="padding:0.8rem 1.2rem;border-bottom:1px solid var(--border)">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:0.62rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:0.5rem">🌤 Current Conditions</div>
+      ${weatherHTML(w)}
+    </div>
+    <div class="challenges">
+      <div class="challenges-label">Player Challenges</div>
+      <div class="badges">
+        ${badges || '<span style="color:var(--dim);font-size:0.72rem">No extreme conditions</span>'}
+      </div>
+    </div>
+    <div style="padding:0.8rem 1.2rem;border-bottom:1px solid var(--border);font-size:0.78rem;color:var(--text);line-height:1.6">
+      ${s.notes}
+    </div>
+    <div class="matches-section">
+      <div class="matches-label">Confirmed Matches</div>
+      ${matches}
+    </div>
+  `;
+}
+
+function showTooltip(e, s) {
+  const tooltip = document.getElementById("tooltip");
+  const container = document.getElementById("map-svg-container");
+  const rect = container.getBoundingClientRect();
+  const svgRect = document.getElementById("main-map").getBoundingClientRect();
+
+  // Convert SVG coords to container coords
+  const scaleX = svgRect.width / 900;
+  const scaleY = svgRect.height / 580;
+  const x = s.mx * scaleX + 15;
+  const y = s.my * scaleY - 10;
+
+  tooltip.style.left = x + "px";
+  tooltip.style.top = y + "px";
+  tooltip.style.display = "block";
+  tooltip.textContent = `${s.flag} ${s.name} · ${s.capacity}`;
+}
+
+function hideTooltip() {
+  document.getElementById("tooltip").style.display = "none";
+}
+
+// Filters
+document.querySelectorAll(".filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    activeFilter = btn.dataset.filter;
+    renderPins();
+    renderGrid();
+  });
+});
+
+// Initial render
+renderPins();
+renderGrid();
+
+// Prefetch weather for all stadiums in background
+STADIUMS.forEach(s => fetchWeather(s.lat, s.lng, s.id));
+</script>
+
+<div style="max-width:1400px;margin:0 auto;padding:0 2rem 2rem;display:grid;grid-template-columns:repeat(3,1fr);gap:1rem">
+  <div style="background:#0c1220;border:1px solid #1e2d42;border-radius:4px;padding:1.2rem">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#9b6fd4;margin-bottom:0.5rem">🏔 Altitude Challenge</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#fff;margin-bottom:0.4rem">Mexico City at 7,350 ft</div>
+    <div style="font-size:0.78rem;color:#607080">First stadium to host 3 World Cups. Reduced oxygen availability, accelerated fatigue, extended recovery. The ultimate test of fitness preparation.</div>
+  </div>
+  <div style="background:#0c1220;border:1px solid #1e2d42;border-radius:4px;padding:1.2rem">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#e85c3a;margin-bottom:0.5rem">🔥 Heat Challenge</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#fff;margin-bottom:0.4rem">Houston · Miami · Guadalajara</div>
+    <div style="font-size:0.78rem;color:#607080">June-July heat in these cities is extreme. Miami adds humidity. Teams without acclimatization protocols will feel the difference in second-half performance.</div>
+  </div>
+  <div style="background:#0c1220;border:1px solid #1e2d42;border-radius:4px;padding:1.2rem">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;color:#3bbf8a;margin-bottom:0.5rem">✈️ Travel Challenge</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:1.6rem;color:#fff;margin-bottom:0.4rem">Vancouver → Miami: 2,700 mi</div>
+    <div style="font-size:0.78rem;color:#607080">The widest geographic spread of any World Cup. Cross-continental travel in the knockout rounds could be a decisive factor in player recovery and preparation.</div>
+  </div>
+</div>
+
+<footer style="text-align:center;padding:1.5rem 2rem;border-top:1px solid #1e2d42;font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:#2a3d52;letter-spacing:0.06em">
+  FIFA WORLD CUP 2026 · JUNE 11 – JULY 19 · USA / MEXICO / CANADA · LIVE WEATHER VIA OPENWEATHERMAP
+</footer>
+
+</body>
+</html>
